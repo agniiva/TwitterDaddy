@@ -15,6 +15,10 @@ from random import uniform
 import json
 import logging
 import anthropic
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # --- Configure Logging ---
 logging.basicConfig(
@@ -25,6 +29,7 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
 
 # --- Configurations ---
 # It's crucial to store sensitive information securely. Here, we use environment variables.
