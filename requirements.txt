@@ -1,0 +1,6 @@
+twitter-api-client
+openai
+asyncio
+selenium
+python-dotenv
+anthropic
