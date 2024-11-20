@@ -4,3 +4,4 @@ asyncio
 selenium
 python-dotenv
 anthropic
+undetected_chromedriver

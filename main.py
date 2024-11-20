@@ -1,12 +1,9 @@
 import asyncio
 import time
 import random
-import re
-from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.keys import Keys
 from twitter.account import Account
 import os
@@ -15,9 +12,10 @@ from random import uniform
 import json
 import logging
 import anthropic
+import undetected_chromedriver as uc
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables from a .env file
 load_dotenv()
 
 # --- Configure Logging ---
@@ -29,7 +27,6 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
-
 
 # --- Configurations ---
 # It's crucial to store sensitive information securely. Here, we use environment variables.
@@ -75,12 +72,41 @@ replied_tweet_ids = set()
 
 # --- Initialize Selenium with Cookie Authentication ---
 def initialize_driver_with_cookies(cookie_data):
-    options = Options()
+    import ssl
+    ssl._create_default_https_context = ssl._create_unverified_context
+
+    options = uc.ChromeOptions()
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36")
 
-    driver = webdriver.Chrome(options=options)
+    # Masking WebDriver detection
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument(f"--user-data-dir={os.path.join(os.getcwd(), 'user_data')}")
+    options.add_argument("--profile-directory=Default")
+
+    # Add this line to bypass SSL verification
+    options.add_argument('--ignore-certificate-errors')
+    options.add_argument('--ignore-ssl-errors')
+    
+    # Persistent user data for human-like behavior
+    options.add_argument(f"--user-data-dir={os.path.join(os.getcwd(), 'user_data')}")
+    options.add_argument("--profile-directory=Default")
+
+    # Using undetected-chromedriver
+    driver = uc.Chrome(options=options)
+
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+        "source": """
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            window.navigator.chrome = {runtime: {}};
+            Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3]});
+        """
+    })
+
     driver.get("https://x.com/")
 
     for key, value in cookie_data.items():
@@ -89,7 +115,27 @@ def initialize_driver_with_cookies(cookie_data):
     driver.refresh()  # Refresh to apply cookies
     return driver
 
+
+# --- Use the updated driver initialization ---
 driver = initialize_driver_with_cookies(twitter_cookie_data)
+
+# --- Updated Delays for Human-like Behavior ---
+def random_delay(min_delay, max_delay):
+    """Random delay to mimic human actions."""
+    delay = uniform(min_delay, max_delay)
+    logging.info(f"Sleeping for {delay:.2f} seconds.")
+    time.sleep(delay)
+
+# --- Dynamic Viewport Adjustment ---
+def randomize_viewport(driver):
+    """Randomly adjusts the browser viewport size."""
+    width = random.randint(1200, 1920)
+    height = random.randint(800, 1080)
+    driver.set_window_size(width, height)
+    logging.info(f"Set browser window size to {width}x{height}.")
+
+# Randomize viewport before each session
+randomize_viewport(driver)
 
 async def get_ai_decision(tweet_text: str):
     """Get AI decision for tweet action using structured output"""
@@ -156,7 +202,11 @@ async def get_claude_reply(tweet_text: str, decision_content: str):
             model="claude-3-5-haiku-20241022",
             max_tokens=1000,
             temperature=0,
-            system="You are Agniva Mahata, a sarcastic cool guy,be funny, and you bacically reply to tweet with your ideas and concepts on startups, design, business, tech, be very specific and clear keep the tweet reply concise yet profound, dont be rude, , just reply with the tweet don't add any prefix or suffixes. Also keep your replies to 1 liner if you don't have anything specific to say",
+            system="""You are Agniva Mahata
+                a sarcastic cool guy,be funny, and you bacically reply to tweet with your ideas & 
+                concepts on startups, design, business, tech, be very specific and clear keep the tweet reply concise yet profound
+                dont be rude, , just reply with the tweet don't add any prefix or suffixes.
+                Also keep your replies to 1 liner if you don't have anything specific to say""",
             messages=[
                 {
                     "role": "user",
@@ -195,11 +245,12 @@ def sanitize_text(text):
     
     return sanitized
 
+# --- Scraping and Action Updates ---
 async def scrape_home_feed():
-    """Scrape tweets from home feed"""
+    """Scrape tweets from home feed with added human-like behavior."""
     logging.info("Accessing home feed...")
     driver.get("https://x.com/home")
-    await asyncio.sleep(5)
+    random_delay(2, 5)
 
     tweets = []
     last_height = driver.execute_script("return document.body.scrollHeight")
@@ -224,7 +275,7 @@ async def scrape_home_feed():
                     continue
 
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            await asyncio.sleep(uniform(1.5, 3.0))
+            random_delay(1.5, 3.0)
 
             new_height = driver.execute_script("return document.body.scrollHeight")
             if new_height == last_height:
@@ -335,6 +386,7 @@ async def perform_ai_action(tweet):
     except Exception as e:
         logging.error(f"Error performing AI action on tweet {tweet['id']}: {e}")
 
+# --- Improved Main Loop ---
 async def main():
     while True:
         try:
@@ -343,16 +395,14 @@ async def main():
             for tweet in tweets:
                 tweet_url = f"https://x.com/i/web/status/{tweet['id']}"
                 driver.get(tweet_url)
-                await asyncio.sleep(2)
+                random_delay(2, 4)  # Human-like pause
                 
                 await perform_ai_action(tweet)
                 
-                delay = uniform(MIN_ACTION_DELAY, MAX_ACTION_DELAY)
-                logging.info(f"Waiting {delay:.1f} seconds before next action...")
-                await asyncio.sleep(delay)
+                random_delay(MIN_ACTION_DELAY, MAX_ACTION_DELAY)
             
             refresh_delay = uniform(300, 600)
-            logging.info(f"Refreshing feed in {refresh_delay:.1f} seconds...")
+            logging.info(f"Refreshing feed in {refresh_delay:.2f} seconds...")
             await asyncio.sleep(refresh_delay)
 
         except Exception as e:
