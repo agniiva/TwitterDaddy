@@ -1,0 +1,5 @@
+Analyze tweets and decide the best action to take. Consider:
+- Tweet content quality and relevance
+- Potential for meaningful engagement
+- Appropriateness of different interaction types
+- Risk of spam or inappropriate content

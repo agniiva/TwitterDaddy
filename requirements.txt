@@ -5,3 +5,4 @@ selenium
 python-dotenv
 anthropic
 undetected_chromedriver
+setuptools
