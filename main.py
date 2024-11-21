@@ -137,6 +137,15 @@ def randomize_viewport(driver):
 # Randomize viewport before each session
 randomize_viewport(driver)
 
+def load_prompt(filename):
+    """Load prompt content from a file"""
+    try:
+        with open(filename, 'r', encoding='utf-8') as file:
+            return file.read().strip()
+    except Exception as e:
+        logging.error(f"Error loading prompt from {filename}: {e}")
+        return ""
+
 async def get_ai_decision(tweet_text: str):
     """Get AI decision for tweet action using structured output"""
     try:
@@ -148,11 +157,7 @@ async def get_ai_decision(tweet_text: str):
                     "content": [
                         {
                             "type": "text",
-                            "text": """Analyze tweets and decide the best action to take. Consider:
-                                - Tweet content quality and relevance
-                                - Potential for meaningful engagement
-                                - Appropriateness of different interaction types
-                                - Risk of spam or inappropriate content"""
+                            "text": load_prompt('prompts/decision.txt')
                         }
                     ]
                 },
@@ -200,13 +205,9 @@ async def get_claude_reply(tweet_text: str, decision_content: str):
     try:
         message = claude_client.messages.create(
             model="claude-3-5-haiku-20241022",
-            max_tokens=1000,
+            max_tokens=300,
             temperature=0,
-            system="""You are Agniva Mahata
-                a sarcastic cool guy,be funny, and you bacically reply to tweet with your ideas & 
-                concepts on startups, design, business, tech, be very specific and clear keep the tweet reply concise yet profound
-                dont be rude, , just reply with the tweet don't add any prefix or suffixes.
-                Also keep your replies to 1 liner if you don't have anything specific to say""",
+            system=load_prompt('prompts/content.txt'),
             messages=[
                 {
                     "role": "user",
@@ -228,19 +229,29 @@ async def get_claude_reply(tweet_text: str, decision_content: str):
         return None
 
 def sanitize_text(text):
-    """Remove non-BMP characters and normalize whitespace"""
+    """Remove non-BMP characters and normalize whitespace while preserving newlines"""
     # Handle Claude's TextBlock response
     if hasattr(text, 'type') and text.type == 'text':
         text = text.text
     elif not isinstance(text, str):
         text = str(text)
     
-    sanitized = ''
-    for char in text:
-        if 32 <= ord(char) <= 126 or char in '""\'.,!?- ':
-            sanitized += char
+    # Split by newlines first to preserve them
+    lines = text.split('\n')
+    sanitized_lines = []
     
-    sanitized = ' '.join(sanitized.split())
+    for line in lines:
+        sanitized = ''
+        for char in line:
+            if 32 <= ord(char) <= 126 or char in '""\'.,!?- ':
+                sanitized += char
+        
+        # Normalize whitespace within each line
+        sanitized = ' '.join(sanitized.split())
+        sanitized_lines.append(sanitized)
+    
+    # Rejoin with newlines and enforce character limit
+    sanitized = '\n'.join(line for line in sanitized_lines if line)
     sanitized = sanitized[:280]  # Twitter character limit
     
     return sanitized
